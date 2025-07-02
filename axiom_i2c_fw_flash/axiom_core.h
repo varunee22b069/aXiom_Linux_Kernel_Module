@@ -42,6 +42,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <linux/firmware.h>
+#include <linux/version.h>
 
 #ifndef __AXIOM_CORE_H
 #define __AXIOM_CORE_H
