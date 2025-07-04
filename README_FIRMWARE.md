@@ -10,17 +10,22 @@ This directory contains the source code and test file for the aXiom touch contro
 - IOCTL commands for firmware/configuration flashing and checksum retrieval
 - Automatic device node creation in `/dev` (no manual `mknod`)
 - Firmware and configuration files are loaded using the kernel's `request_firmware()` interface
+- Integration with existing repo
 
-## Directory Structure
+## Required Files
 
 - `axiom_core.c/h` – Core driver logic
-- `axiom_i2c.c` – I2C communication
+- `axiom_i2c_comms.c` – I2C communication
 - `axiom_ioctl.c` – Character device and IOCTL interface
 - `axiom_cfg.c` – Configuration update and CRC routines
 - `axiom_fw.c` – Firmware update logic
 - `Makefile` – For standalone out-of-tree kernel module build
-- `test.c` – Example user-space test utility
-- `README.md` – This file
+- `README_FIRMWARE.md` – This file
+- `test` Directory (Intended only for testing phase)
+  - `test.c` – Example user-space test utility
+  - `axiom_firmware.alc` – Example firmware file
+  - `axiom_config.bin` –  Example config file
+
 
 ## Building the Module
 
@@ -35,7 +40,7 @@ make
 This will produce a kernel module file named:
 
 ```
-axiom_i2c_drv.ko
+axiom_i2c.ko
 ```
 
 ## Installing and Loading the Module
@@ -50,13 +55,13 @@ sudo depmod -a
 Or to load it manually for testing:
 
 ```sh
-sudo insmod axiom_i2c_drv.ko
+sudo insmod axiom_i2c.ko
 ```
 
 To remove:
 
 ```sh
-sudo rmmod axiom_i2c_drv
+sudo rmmod axiom_i2c
 ```
 
 
@@ -75,7 +80,7 @@ Supported IOCTLs:
 Before testing the module, ensure the firmware and configuration files are available in the standard firmware search path (e.g., `/vendor/firmware/`).  
 The filenames **must match** those defined in `axiom_test.c`:
 
-To copy firmware and config files from current directory to `/vendor/firmware/`:
+To copy firmware and config files from current directory to `/vendor/firmware/`(android) or equivalent directory:
 ```sh
 sudo cp <firmware_file_name> /vendor/firmware/axiom_firmware.alc
 sudo cp <config_file_name> /vendor/firmware/axiom_config.bin
@@ -94,7 +99,7 @@ Make sure to copy the binaries to the appropriate firmware directory before use.
 
 ## Important Notes
 
-- The module name and output file is `axiom_i2c_drv.ko` (set in the Makefile).
+- The module name and output file is `axiom_i2c.ko`
 - The bootloader reset command fails to reset the bootloader after flashing, therefore manual reset (Power Off, Power On) should be done for changes to reflect.
 
 ## Sources
@@ -104,16 +109,13 @@ Make sure to copy the binaries to the appropriate firmware directory before use.
 
 ## License
 
-This driver is licensed under the GNU General Public License v2.0.  
-See the `SPDX-License-Identifier` in each source file.
+This driver is licensed under the GNU General Public License v2.0.
 
 ## Authors
 
-Karthik Choda <Karthik.Choda@harman.com> \
-Varun Rajesh <Vaddi.Rajesh@harman.com>
+Karthik Choda <karthikchoda0110@gmail.com> \
+Varun Rajesh <ee22b069@smail.iitm.ac.in>>
 
 ## Maintainer Note
 
 This version is a cleaned-up and functional port of vendor-provided Python-based firmware/configuration flashing logic, now integrated as a Linux kernel module with a character device and ioctl interface.
-
-Some existing author tags were temporarily removed due to unclear source contribution across vendor and upstream. This will be re-evaluated with maintainers once the contribution history is clarified.

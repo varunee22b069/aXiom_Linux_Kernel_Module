@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
+#include <linux/firmware.h>
+#include <linux/ioctl.h>
 #include "axiom_core.h"
 
 /* IOCTL command definitions for user-space communication */
@@ -66,6 +68,7 @@ static long axiom_dev_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		filename[AXIOM_FILENAME_MAXLEN - 1] = '\0'; // Ensure null-termination
 
 		// Load configuration file from filesystem
+		dev_err(axiom_dev->axiom_data_core->pDev, "Loading config file %s\n", filename);
 		result = request_firmware(&cfg, filename, axiom_dev->axiom_data_core->pDev);
 		if (result) {
 			dev_err(axiom_dev->axiom_data_core->pDev, "Failed to load config file %s\n", filename);
@@ -93,6 +96,7 @@ static long axiom_dev_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		filename[AXIOM_FILENAME_MAXLEN - 1] = '\0';
 
 		// Load firmware file from filesystem
+		dev_err(axiom_dev->axiom_data_core->pDev, "Loading firmware file %s\n", filename);
 		result = request_firmware(&fw, filename, axiom_dev->axiom_data_core->pDev);
 		if (result) {
 			dev_err(axiom_dev->axiom_data_core->pDev, "Failed to load firmware %s\n", filename);
@@ -102,7 +106,7 @@ static long axiom_dev_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		// Flash configuration to device
 		result = axiom_fw_update(axiom_dev->axiom_data_core, (unsigned char *)fw->data, fw->size);
 		release_firmware(fw);
-		if (result) {
+		if (!result) {
 			dev_err(axiom_dev->axiom_data_core->pDev, "Firmware flashing failed %d\n", result);
 			return result;
 		}
@@ -176,7 +180,12 @@ int axiom_dev_init(struct axiom_data_core *data_core)
 	axiom_cdev.axiom_data_core = data_core;
 
 	/*Creating struct class*/
+	#if KERNEL_VERSION(6,4, 0) <= LINUX_VERSION_CODE
+	dev_class = class_create("axiom_class");
+	#else
 	dev_class = class_create(THIS_MODULE, "axiom_class");
+	#endif
+
 	if (IS_ERR(dev_class)) {
 		dev_err(data_core->pDev, "Couldn't create struct class\n");
 		goto r_class;

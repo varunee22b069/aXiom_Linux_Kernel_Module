@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
+#include <linux/interrupt.h>
+#include <linux/irqreturn.h>
 #include "axiom_core.h"
 
 #define CRC_CAL(usage_content, pos) ((u32)((usage_content)[pos + 3] << 24 | (usage_content)[pos + 2] << 16 | (usage_content)[pos + 1] << 8 | (usage_content)[pos]))
@@ -17,8 +19,8 @@ int axiom_cfg_update(struct axiom_data_core *data_core, unsigned char *buffer, i
 	device_crc_data = get_target_crc_data(data_core, device_crc_data);
 	printU33Data(data_core, device_crc_data);
 
-	// Disable IRQs before flashing firmware to avoid race conditions
-	dev_err(data_core->pDev, "disable irq for firmware flashing");
+	// Disable IRQs before flashing config to avoid race conditions
+	dev_err(data_core->pDev, "disable irq for config flashing");
 	disable_irq(data_core->irq_line);
 	mdelay(100);
 	system_manager_command(data_core, SYSMGR_CMD_STOP, 0, false);
@@ -36,8 +38,6 @@ int axiom_cfg_update(struct axiom_data_core *data_core, unsigned char *buffer, i
 	// Free and repopulate usage table after config update
 	dev_info(data_core->pDev, "freeing usage table...\n");
 	data_core->usage_table_populated = false;
-	kfree(data_core->usage_table);
-	data_core->usage_table = NULL;
 	dev_info(data_core->pDev, "Device info After download:");
 	axiom_discover(data_core);
 	enable_irq(data_core->irq_line);
@@ -125,13 +125,13 @@ struct u33_CRCData parse_config_file(struct axiom_data_core *data_core, struct u
 
 	// Check file signature to ensure it's a valid aXiom config file
 	signature = (u32)(buffer[0] << 24 | buffer[1] << 16 | buffer[2] << 8 | buffer[3]);
-	dev_info(data_core->pDev, "CFG Flie Signature : 0x%08X\n", signature); // Extract Signature --> To identify the file as an aXiom config file.
+	dev_info(data_core->pDev, "CFG File Signature : 0x%08X\n", signature); // Extract Signature --> To identify the file as an aXiom config file.
 	if (signature != 0x20071969) {
 		dev_err(data_core->pDev, "CFG File not recognized\n");
 		return file_crc_data;
 	}
 	version = (uint16_t)((buffer[4] << 8) | buffer[5]); // Extract Version
-	dev_info(data_core->pDev, "CFG Flie Version : %x\n", version);
+	dev_info(data_core->pDev, "CFG File Version : %x\n", version);
 
 	// Start parsing usages from offset 13 (header size)
 	for (index = 13; index < size; index++) {
@@ -143,9 +143,9 @@ struct u33_CRCData parse_config_file(struct axiom_data_core *data_core, struct u
 		file_crc_data.length = (u16)((buffer[index+4] << 8) | buffer[index+3]);
 		file_crc_data.usage_content = &buffer[index + 5];
 
-		dev_dbg(data_core->pDev, "CFG usage : %x\n", file_crc_data.usage); // In HEXA
-		dev_dbg(data_core->pDev, "CFG revision : %x\n", file_crc_data.revision); // In HEXA
-		dev_dbg(data_core->pDev, "CFG profile : %x\n", file_crc_data.profile); // In HEXA
+		dev_dbg(data_core->pDev, "CFG usage : 0x%x\n", file_crc_data.usage); // In HEXA
+		dev_dbg(data_core->pDev, "CFG revision : 0x%x\n", file_crc_data.revision); // In HEXA
+		dev_dbg(data_core->pDev, "CFG profile : 0x%x\n", file_crc_data.profile); // In HEXA
 		dev_dbg(data_core->pDev, "CFG length : %d\n", file_crc_data.length); // In DEC
 
 		// Usage 0x04 is reserved, skip it
@@ -155,7 +155,7 @@ struct u33_CRCData parse_config_file(struct axiom_data_core *data_core, struct u
 			} else if (cdu_usage_list(data_core, file_crc_data.usage)) {
 				dev_info(data_core->pDev, "Encountered cdu type usage");
 				// CDU usages require special write logic
-				if (file_crc_data.length != cdu_write(data_core, file_crc_data.usage, file_crc_data.length, file_crc_data.usage_content)) {
+				if (cdu_write(data_core, file_crc_data.usage, file_crc_data.length, file_crc_data.usage_content)) {
 					dev_err(data_core->pDev, "cdu_write failed for %d usage", file_crc_data.usage);
 					return file_crc_data;
 				}
@@ -163,7 +163,7 @@ struct u33_CRCData parse_config_file(struct axiom_data_core *data_core, struct u
 				dev_info(data_core->pDev, "Regular usage %x", file_crc_data.usage);
 				target_address = usage_to_target_address(data_core, file_crc_data.usage, 0, 0);
 				if (file_crc_data.length != axiom_write_page(data_core->pAxiomData, target_address, file_crc_data.length, file_crc_data.usage_content)) {
-					dev_err(data_core->pDev, "axiom_write_page failed for %d usage", file_crc_data.usage);
+					dev_err(data_core->pDev, "axiom_write_usage failed for %d usage", file_crc_data.usage);
 					return file_crc_data;
 				}
 			}

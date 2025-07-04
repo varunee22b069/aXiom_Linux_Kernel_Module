@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
+#include <linux/interrupt.h>
+#include <linux/irqreturn.h>
 #include "axiom_core.h"
 
 /*
@@ -23,10 +25,8 @@ int axiom_fw_update(struct axiom_data_core *data_core, unsigned char *buffer, in
 			bootloader_reset_axiom(data_core);
 			mdelay(2000);
 			dev_info(data_core->pDev, "freeing usage table...\n");
-			// Free and repopulate usage table after firmware update
+			// Repopulate usage table after firmware update
 			data_core->usage_table_populated = false;
-			kfree(data_core->usage_table);
-			data_core->usage_table = NULL;
 			dev_info(data_core->pDev, "Device info after download:");
 			axiom_discover(data_core);
 			enable_irq(data_core->irq_line);
@@ -57,7 +57,7 @@ int alc_download(struct axiom_data_core *data_core, unsigned char *buffer, int s
 		}
 		// Chunk length is stored in header bytes 6 and 7 (little endian)
 		chunk_length = (chunk_header[6] << 8) | (chunk_header[7]);
-		dev_info(data_core->pDev, "chunk_length is %x bytes", chunk_length);
+		dev_info(data_core->pDev, "chunk_length is 0x%x bytes", chunk_length);
 		chunk_payload = &buffer[i];
 		// Write the chunk to the device
 		if (chunk_length != bootloader_write_chunk(data_core, chunk_header, chunk_length, chunk_payload)) {
@@ -199,7 +199,7 @@ int write_busy_wait(struct axiom_data_core *data_core)
 
 	// Poll the busy status with a timeout (max 5 seconds)
 	while (bootloader_get_busy_status(data_core)) {
-		if (current_timeout < 5000) {
+		if (current_timeout < 100) {
 			current_timeout = current_timeout + 1;
 		} else {
 			dev_err(data_core->pDev, "ERROR: aXiom not responding... current_timeout: %d ", current_timeout);
